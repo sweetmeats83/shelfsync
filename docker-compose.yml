@@ -1,0 +1,15 @@
+services:
+  shelfsync:
+    build: .
+    container_name: shelfsync
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${PORT:-8069}:${PORT:-8080}"
+    volumes:
+      - shelfsync-data:/data
+      - ${CALIBRE_LIBRARY:?Set CALIBRE_LIBRARY in .env to your Calibre library folder}:/calibre:ro
+
+# Named volume avoids the "unable to open database file" bind-mount permission problem.
+volumes:
+  shelfsync-data:

@@ -1,0 +1,16 @@
+# secrets and local data
+.env
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# build output and dependencies
+node_modules/
+dist/
+web-dist/
+web/dist/
+
+# local-only files, not part of ShelfSync
+BUILD_PLAN.md
+crosspointmeta.koplugin/

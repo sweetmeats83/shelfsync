@@ -1,0 +1,7 @@
+**/node_modules
+**/dist
+.env
+data
+test
+*.koplugin
+BUILD_PLAN.md
