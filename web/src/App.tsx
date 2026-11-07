@@ -211,12 +211,15 @@ function Books() {
       </thead>
       <tbody>
         {data.map((b) => (
-          <tr key={b.id}>
+          <tr key={b.id} className={b.links.some((l) => l.method === "auto-title") ? "review" : undefined}>
             <td className="titlecell">
               <Cover book={b} className="thumb" />
               <div>
                 <a href={hcUrl(b)} target="_blank" rel="noreferrer">{b.title}</a>
                 <small>{b.author}</small>
+                {b.links.some((l) => l.method === "auto-title") && (
+                  <small className="warn">⚠ Guessed from the title: check this is the right Hardcover book (fix it under Review guesses)</small>
+                )}
               </div>
             </td>
             <td>{b.sources.length ? b.sources.map((s) => <div key={s.label + s.source}>{s.label} {s.finished ? "finished" : pct(s.pct)}</div>) : "–"}</td>

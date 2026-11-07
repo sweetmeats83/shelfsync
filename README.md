@@ -84,7 +84,7 @@ Set `ABS_URL` and `ABS_TOKEN`. ShelfSync only reads from Audiobookshelf. Audiobo
 
 ## Linking and editions
 
-Matching order: Hardcover id stored in Calibre (e.g. from a Calibre Hardcover metadata plugin: `hardcover-id`, `hardcover-edition`) → ISBN → ASIN → title/author search. Strong title matches link automatically; middling ones appear under **Unmatched** as a suggestion you confirm with one click. Anything unmatched can be linked by searching Hardcover in the UI.
+Matching order: Hardcover id stored in Calibre (e.g. from a Calibre Hardcover metadata plugin: `hardcover-id`, `hardcover-edition`) → ISBN → ASIN → title/author search. Every book is linked to its closest Hardcover match automatically. Matches made from the title alone are marked with a warning on the **Books** tab and listed under **Review guesses**, where you can correct them. Only a book Hardcover returns nothing for stays under **Unmatched**, to be linked by searching in the UI.
 
 The edition recorded on Hardcover follows what you're doing: listening picks the audiobook edition, reading picks an ebook edition. You can pick an edition per book on the **Books** tab.
 

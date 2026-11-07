@@ -72,3 +72,6 @@ input, select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); 
 .editions { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; max-width: 320px; }
 .edition { text-align: left; font-size: 0.8rem; padding: 4px 8px; }
 .edition.current { outline: 2px solid var(--accent, #6ea8fe); }
+
+.warn { color: var(--bad); font-weight: 600; }
+tr.review td { background: rgba(255, 170, 0, 0.08); }

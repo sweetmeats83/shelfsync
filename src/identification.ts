@@ -1,4 +1,5 @@
 import { logActivity } from "./activity.js";
+import { surname } from "./calibre.js";
 import type { DB } from "./db.js";
 import type { HardcoverApi, EditionInfo } from "./hardcover.js";
 import { AUTO_MIN_SCORE, pickBest, type Lookup } from "./matching.js";
@@ -181,36 +182,29 @@ async function guess(
   lookup: Lookup,
 ): Promise<Resolved | null> {
   const hits = await deps.hc.search(`${lookup.title} ${lookup.authors[0] ?? ""}`.trim());
-  const pick = pickBest(lookup, hits);
+  // Always link the closest match: an imperfect link you can fix in the UI beats a book that never syncs.
+  // Anything below AUTO_MIN_SCORE (and every last-resort pick) is listed under "guesses" for review.
+  let pick = pickBest(lookup, hits);
   if (!pick) {
-    logActivity(deps.db, {
-      level: "warn",
-      source,
-      message: `No acceptable Hardcover match for "${lookup.title}" (${hits.length} results)`,
-      payload: { lookup, top: hits.slice(0, 3) },
-    });
-    return null;
-  }
-  if (pick.score < AUTO_MIN_SCORE) {
-    // Plausible but not certain (e.g. same main title, different subtitle): offer it, don't act on it.
-    deps.db
-      .prepare(
-        `INSERT INTO suggestions (source, source_id, hardcover_book_id, title, author, score) VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT (source, source_id) DO UPDATE SET hardcover_book_id = excluded.hardcover_book_id,
-           title = excluded.title, author = excluded.author, score = excluded.score`,
-      )
-      .run(source, sourceId, pick.hit.id, pick.hit.title, pick.hit.author, pick.score);
-    logActivity(deps.db, {
-      source,
-      message: `Possible match for "${lookup.title}": "${pick.hit.title}" (score ${pick.score}). Not linked: confirm it in Unmatched.`,
-      payload: { sourceId, pick },
-    });
-    return null;
+    // Nothing passed the title/author checks: fall back to Hardcover's own top result, preferring a matching author.
+    const wantSurnames = new Set(lookup.authors.map(surname).filter(Boolean));
+    const top = hits.find((h) => h.author && wantSurnames.has(surname(h.author))) ?? hits[0];
+    if (!top) {
+      logActivity(deps.db, {
+        level: "warn",
+        source,
+        message: `No Hardcover results at all for "${lookup.title}"; link it by hand in the UI.`,
+        payload: { lookup },
+      });
+      return null;
+    }
+    pick = { hit: top, score: 0, runnersUp: [] };
   }
   deps.db.prepare("DELETE FROM suggestions WHERE source = ? AND source_id = ?").run(source, sourceId);
   logActivity(deps.db, {
+    level: pick.score < AUTO_MIN_SCORE ? "warn" : "info",
     source,
-    message: `Best guess for "${lookup.title}" → "${pick.hit.title}" (Hardcover #${pick.hit.id}, score ${pick.score})`,
+    message: `Best guess for "${lookup.title}" → "${pick.hit.title}" (Hardcover #${pick.hit.id}, score ${pick.score})${pick.score < AUTO_MIN_SCORE ? ": low confidence, check it under Books → guesses" : ""}`,
     payload: { sourceId, pick },
   });
   return { hardcoverBookId: pick.hit.id, edition: null, title: pick.hit.title, author: pick.hit.author, method: "auto-title" };

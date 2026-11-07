@@ -163,16 +163,15 @@ describe("linkSource", () => {
     expect(db.prepare("SELECT method m FROM links").get()).toEqual({ m: "auto-title" });
   });
 
-  it("best-guess: a same-main-title but different book is suggested, not linked", async () => {
+  it("best-guess: a same-main-title book is still linked (reviewable as a guess)", async () => {
     const db = openDb(":memory:");
     const hc = fakeHc({ search: async () => [{ id: 5, title: "Dune", author: "Frank Herbert", users: 99 }] });
     const r = await linkSource({ db, hc }, "koreader", "d", {}, { title: "Dune: Messiah", authors: ["Frank Herbert"] });
-    expect(r.status).toBe("unresolved");
-    expect(db.prepare("SELECT count(*) n FROM links").get()).toEqual({ n: 0 });
-    expect(db.prepare("SELECT hardcover_book_id h, title FROM suggestions WHERE source_id='d'").get()).toEqual({ h: 5, title: "Dune" });
+    expect(r).toMatchObject({ status: "linked", hardcoverBookId: 5, method: "auto-title" });
+    expect(db.prepare("SELECT count(*) n FROM suggestions").get()).toEqual({ n: 0 });
   });
 
-  it("best-guess: refuses a wrong-author or dissimilar result", async () => {
+  it("best-guess: with no acceptable result, falls back to the top hit, preferring the right author", async () => {
     const db = openDb(":memory:");
     const hc = fakeHc({
       search: async () => [
@@ -181,6 +180,13 @@ describe("linkSource", () => {
       ],
     });
     const r = await linkSource({ db, hc }, "koreader", "d", {}, { title: "Rebecca", authors: ["Daphne Du Maurier"] });
+    expect(r).toMatchObject({ status: "linked", hardcoverBookId: 2, method: "auto-title" });
+  });
+
+  it("best-guess: stays unresolved only when Hardcover returns nothing", async () => {
+    const db = openDb(":memory:");
+    const hc = fakeHc({ search: async () => [] });
+    const r = await linkSource({ db, hc }, "koreader", "d", {}, { title: "Nope", authors: [] });
     expect(r.status).toBe("unresolved");
     expect(db.prepare("SELECT count(*) n FROM links").get()).toEqual({ n: 0 });
   });
