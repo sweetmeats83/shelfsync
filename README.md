@@ -11,6 +11,13 @@ A self-hosted server that keeps your reading progress in step across e-readers a
 
 > **Status:** built for one person's setup and used there. Some Hardcover API shapes were taken from other clients' source rather than official docs (see [Known limits](#known-limits)). Start in dry-run mode.
 
+## Requirements and limits
+
+- **One person per instance.** ShelfSync serves a single reader with a single Hardcover account. Progress, links and highlights are not separated per user, so two people sharing one instance would get mixed together. If several people want it, run one instance each (separate container, `.env` and data volume). They can all mount the same Calibre library read-only.
+- **A Calibre library is needed to link KOReader books.** The plugin identifies a book through Calibre; without a library, KOReader books show up as unmatched and have to be linked by hand in the web UI. Audiobookshelf-only books don't need Calibre.
+- **A Hardcover account and API token are required.** Without one, nothing can be pushed.
+- You build the Docker image yourself (`docker compose up -d --build`); there is no published image yet.
+
 ## How progress is decided
 
 Progress from every source for a book is compared and the furthest one wins. Hardcover is updated at most every `PUSH_INTERVAL_MINUTES` per book; finishing a book is pushed immediately. A book already marked *Read* on Hardcover is never touched. Only recently active Audiobookshelf items are synced, so your listening history isn't dumped onto Hardcover.
