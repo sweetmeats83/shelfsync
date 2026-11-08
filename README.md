@@ -64,6 +64,7 @@ Keep tokens in `.env`; it is git-ignored. Put the server behind HTTPS (e.g. a re
 1. In KOReader: *Progress sync → Custom sync server*, enter your ShelfSync URL, then register/log in. All devices use the same account.
 2. Copy the `shelfsync.koplugin` folder into KOReader's `plugins/` directory and restart KOReader.
 3. With a book open: *Tools → ShelfSync*. The plugin tells the server which book you're reading (title, author, ISBN, Calibre id), sends highlights, and lets you name the device. The menu only appears while a book is open.
+4. New highlights and notes are sent about 20 seconds after you make them. If the device is offline, the plugin turns Wi-Fi on (following KOReader's *Action when Wi-Fi is off* setting) or sends them the next time Wi-Fi connects. Switch this off with *Turn on Wi-Fi to send new highlights*.
 
 Without the plugin, progress still syncs but books are linked less reliably.
 

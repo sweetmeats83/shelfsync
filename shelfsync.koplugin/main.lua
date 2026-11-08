@@ -10,6 +10,7 @@ Everything is wrapped in pcall and uses short timeouts: it must never break read
 ]]
 
 local DataStorage = require("datastorage")
+local Device = require("device")
 local InfoMessage = require("ui/widget/infomessage")
 local LuaSettings = require("luasettings")
 local NetworkMgr = require("ui/network/manager")
@@ -88,13 +89,27 @@ function ShelfSync:addToMainMenu(menu_items)
                 end,
             },
             {
-                text = _("Send highlights automatically (on open and close)"),
+                text = _("Send highlights automatically"),
                 checked_func = function()
                     return self.cache:readSetting("auto_highlights") ~= false
                 end,
                 callback = function()
                     local on = self.cache:readSetting("auto_highlights") ~= false
                     self.cache:saveSetting("auto_highlights", not on)
+                    self.cache:flush()
+                end,
+            },
+            {
+                text = _("Turn on Wi-Fi to send new highlights"),
+                enabled_func = function()
+                    return self.cache:readSetting("auto_highlights") ~= false
+                end,
+                checked_func = function()
+                    return self.cache:readSetting("wifi_for_highlights") ~= false
+                end,
+                callback = function()
+                    local on = self.cache:readSetting("wifi_for_highlights") ~= false
+                    self.cache:saveSetting("wifi_for_highlights", not on)
                     self.cache:flush()
                 end,
             },
@@ -399,6 +414,7 @@ function ShelfSync:sendHighlights(manual)
 
     local highlights = self:getHighlights()
     if #highlights == 0 then
+        self.cache:delSetting("hl_unsent_" .. digest)
         notify(_("No highlights in this book."))
         return
     end
@@ -410,6 +426,7 @@ function ShelfSync:sendHighlights(manual)
     end
     local signature = md5(table.concat(parts, "\n"))
     if not manual and self.cache:readSetting("hl_" .. digest) == signature then
+        self.cache:delSetting("hl_unsent_" .. digest)
         return
     end
 
@@ -426,6 +443,7 @@ function ShelfSync:sendHighlights(manual)
     })
     if ok and type(code) == "number" and code >= 200 and code < 300 then
         self.cache:saveSetting("hl_" .. digest, signature)
+        self.cache:delSetting("hl_unsent_" .. digest)
         self.cache:flush()
         local parsed_ok, parsed = pcall(JSON.decode, resp)
         notify(parsed_ok and type(parsed) == "table" and parsed.message
@@ -434,6 +452,14 @@ function ShelfSync:sendHighlights(manual)
         logger.warn("ShelfSync: highlight send failed", code, resp)
         notify(_("ShelfSync highlights failed: ") .. tostring(code))
     end
+end
+
+-- Seconds to wait after a highlight/note change, so a burst of edits goes in one upload.
+local HIGHLIGHT_DELAY = 20
+
+local function safeSend(self)
+    local ok, err = pcall(self.sendHighlights, self, false)
+    if not ok then logger.warn("ShelfSync highlights error:", err) end
 end
 
 function ShelfSync:onReaderReady()
@@ -445,17 +471,71 @@ function ShelfSync:onReaderReady()
     end)
     if self.cache:readSetting("auto_highlights") ~= false then
         UIManager:scheduleIn(10, function()
-            local ok, err = pcall(self.sendHighlights, self, false)
-            if not ok then logger.warn("ShelfSync highlights error:", err) end
+            local digest = self:getDigest(readKosyncSettings(self.ui))
+            if digest and self.cache:readSetting("hl_unsent_" .. digest) then
+                self:sendHighlightsWhenOnline() -- changes left over from last time: worth turning Wi-Fi on
+            elseif NetworkMgr:isOnline() then
+                safeSend(self)
+            end
         end)
     end
 end
 
--- Closing a book is when new highlights have usually just been made.
-function ShelfSync:onCloseDocument()
+-- Send now if online; otherwise remember it, and turn Wi-Fi on if allowed (KOReader's
+-- own "Action when Wi-Fi is off" setting decides whether that is silent or asks first).
+function ShelfSync:sendHighlightsWhenOnline()
+    if not self.ui.document then return end
+    if NetworkMgr:isOnline() then
+        self.hl_pending = false
+        safeSend(self)
+        return
+    end
+    self.hl_pending = true
+    local digest = self:getDigest(readKosyncSettings(self.ui))
+    if digest then
+        self.cache:saveSetting("hl_unsent_" .. digest, true)
+        self.cache:flush()
+    end
+    if self.cache:readSetting("wifi_for_highlights") ~= false and Device:hasWifiToggle() then
+        NetworkMgr:runWhenOnline(function()
+            if self.hl_pending and self.ui.document then
+                self.hl_pending = false
+                safeSend(self)
+            end
+        end)
+    end
+end
+
+function ShelfSync:scheduleHighlightSend()
     if self.cache:readSetting("auto_highlights") == false then return end
-    local ok, err = pcall(self.sendHighlights, self, false)
-    if not ok then logger.warn("ShelfSync highlights error:", err) end
+    if self.hl_task then UIManager:unschedule(self.hl_task) end
+    self.hl_task = function()
+        self.hl_task = nil
+        self:sendHighlightsWhenOnline()
+    end
+    UIManager:scheduleIn(HIGHLIGHT_DELAY, self.hl_task)
+end
+
+-- Fired by KOReader whenever a highlight or note is added, edited or removed.
+function ShelfSync:onAnnotationsModified()
+    self:scheduleHighlightSend()
+end
+
+-- Wi-Fi came up (by you or by another plugin): send anything that was waiting.
+function ShelfSync:onNetworkConnected()
+    if self.hl_pending then
+        UIManager:scheduleIn(3, function() self:sendHighlightsWhenOnline() end)
+    end
+end
+
+-- Closing a book: send now rather than wait, while the book is still open.
+function ShelfSync:onCloseDocument()
+    if self.hl_task then
+        UIManager:unschedule(self.hl_task)
+        self.hl_task = nil
+    end
+    if self.cache:readSetting("auto_highlights") == false then return end
+    if NetworkMgr:isOnline() then safeSend(self) end
 end
 
 return ShelfSync
