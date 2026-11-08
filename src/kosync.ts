@@ -8,6 +8,8 @@ export interface KosyncOptions {
   /** Phase 4 hook; called after every successful progress PUT. */
   onProgress?: (userId: number, document: string) => void;
   /** Devices without a ShelfSync plugin (CrossPoint) put title/authors in the progress body; this identifies from them. */
+  /** Called for every progress lookup (GET), with the stored row or undefined; used for diagnostics only. */
+  onLookup?: (document: string, row: { device: string; percentage: number; timestamp: number } | undefined) => void;
   onMetadata?: (document: string, metadata: Record<string, unknown>, device: { id: string; name: string }) => void;
 }
 

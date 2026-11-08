@@ -94,6 +94,30 @@ app.route(
     db,
     registrationDisabled: config.registrationDisabled,
     onProgress: (_userId, document) => engine?.notifyDocument(document),
+    onLookup: (document, row) => {
+      const short = document.slice(0, 8);
+      if (row) {
+        logActivity(db, { source: "koreader", message: `Progress lookup ${short}…: sent ${Math.round(row.percentage * 100)}% (last from ${row.device})` });
+        return;
+      }
+      // Nothing stored under this hash. If the same title exists under a different hash, the files differ.
+      const me = db.prepare("SELECT title FROM documents WHERE document = ?").get(document) as { title: string | null } | undefined;
+      const twin = me?.title
+        ? (db
+            .prepare(
+              `SELECT d.document FROM documents d WHERE d.document != ? AND lower(d.title) = lower(?)
+                 AND EXISTS (SELECT 1 FROM progress p WHERE p.document = d.document) LIMIT 1`,
+            )
+            .get(document, me.title) as { document: string } | undefined)
+        : undefined;
+      logActivity(db, {
+        level: "warn",
+        source: "koreader",
+        message: twin
+          ? `Progress lookup ${short}…: nothing stored, but "${me!.title}" exists under a different file hash (${twin.document.slice(0, 8)}…). The files differ, so devices won't share progress. Use the same EPUB file everywhere and Binary matching.`
+          : `Progress lookup ${short}…: nothing stored for this file hash yet.`,
+      });
+    },
     onMetadata: (document, m) => {
       // Only for books we can't place yet, at most once an hour each.
       const seen = db.prepare("SELECT 1 FROM links WHERE source = 'koreader' AND source_id = ?").get(document);
