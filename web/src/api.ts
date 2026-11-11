@@ -90,6 +90,27 @@ export interface Highlight {
   author: string | null;
 }
 
+export interface Stats {
+  since: number | null;
+  totals: {
+    booksTracked: number;
+    finished: number;
+    finishedThisYear: number;
+    finishedByFormat: Record<string, number>;
+    highlights: number;
+    readingSeconds: number;
+    listeningSeconds: number;
+    activeDays: number;
+  };
+  streak: { current: number; longest: number };
+  listeningFromAbs: boolean;
+  authors: { author: string; books: number; finished: number; highlights: number; seconds: number }[];
+  books: { id: number; title: string; author: string | null; coverUrl: string | null; seconds: number; highlights: number; finished: boolean }[];
+  devices: { id: string; name: string; books: number; seconds: number; pctRead: number; lastSeen: number | null }[];
+  months: { month: string; finished: number; readingSeconds: number; listeningSeconds: number }[];
+  weekdays: { day: string; seconds: number }[];
+}
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/admin/api${path}`, {
     ...init,
@@ -104,6 +125,7 @@ const post = <T,>(path: string, body: unknown) => call<T>(path, { method: "POST"
 
 export const api = {
   status: () => call<Status>("/status"),
+  stats: () => call<Stats>("/stats"),
   books: () => call<BookRow[]>("/books"),
   unmatched: () => call<Unmatched[]>("/unmatched"),
   search: (q: string) => call<Hit[]>(`/search?q=${encodeURIComponent(q)}`),

@@ -143,6 +143,7 @@ if (config.adminPassword) {
       dryRun: config.dryRun,
       absConfigured: !!(config.absUrl && config.absToken),
       getHcUser: () => hcUser,
+      tz: config.tz,
       display: hardcover ? (id) => hardcover.display(id) : undefined,
       sendJournal: hardcover ? (bookId, entry, privacy) => hardcover.insertJournal(bookId, entry, privacy) : undefined,
       notify: (source, id) => engine?.notify(source, id),

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { api, type ActivityRow, type BookRow, type Device, type Highlight, type Hit, type Status, type Unmatched } from "./api";
 
-type Tab = "dashboard" | "books" | "highlights" | "devices" | "unmatched" | "guesses" | "activity";
+type Tab = "dashboard" | "stats" | "books" | "highlights" | "devices" | "unmatched" | "guesses" | "activity";
 const TABS: [Tab, string][] = [
   ["dashboard", "Dashboard"],
+  ["stats", "Stats"],
   ["books", "Books"],
   ["highlights", "Highlights"],
   ["devices", "Devices"],
@@ -50,6 +51,7 @@ export function App() {
       </header>
       <main>
         {tab === "dashboard" && <Dashboard status={status.data} error={status.error} />}
+        {tab === "stats" && <StatsPage />}
         {tab === "books" && <Books />}
         {tab === "highlights" && <Highlights />}
         {tab === "devices" && <Devices />}
@@ -542,6 +544,146 @@ function Activity() {
         </div>
       ))}
       {data?.length === 0 && <p>No activity.</p>}
+    </div>
+  );
+}
+
+// Stats ---------------------------------------------------------------------
+
+const hours = (s: number) => {
+  if (!s) return "0m";
+  const h = Math.floor(s / 3600);
+  const m = Math.round((s % 3600) / 60);
+  return h ? `${h}h ${m}m` : `${m}m`;
+};
+const FORMAT_NAME: Record<string, string> = { audio: "Audiobook", ebook: "Ebook", physical: "Print", unknown: "Unknown" };
+const monthLabel = (m: string) => new Date(`${m}-15T12:00:00Z`).toLocaleString(undefined, { month: "short" });
+
+/** Horizontal bars, one series: the bar is the value, the text beside it gives the number. */
+function BarList({ rows }: { rows: { key: string; label: ReactNode; value: number; text: string; tip?: string }[] }) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  return (
+    <div className="barlist">
+      {rows.map((r) => (
+        <div className="barrow" key={r.key} title={r.tip ?? r.text}>
+          <div className="barlabel">{r.label}</div>
+          <div className="bartrack"><i style={{ width: `${(r.value / max) * 100}%` }} /></div>
+          <div className="barval">{r.text}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Vertical columns over time, one series. */
+function Columns({ cols }: { cols: { key: string; label: string; value: number; tip: string }[] }) {
+  const max = Math.max(1, ...cols.map((c) => c.value));
+  return (
+    <div className="columns">
+      {cols.map((c) => (
+        <div className="col" key={c.key} title={c.tip}>
+          <div className="colplot"><i style={{ height: `${(c.value / max) * 100}%` }} /></div>
+          <span>{c.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StatsPage() {
+  const { data: s, error } = useLoad(api.stats, [], 60000);
+  if (error) return <Err msg={error} />;
+  if (!s) return <p>Loading…</p>;
+  const t = s.totals;
+  const formats = Object.entries(t.finishedByFormat).sort((a, b) => b[1] - a[1]);
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  return (
+    <div className="stats">
+      <div className="cards">
+        <Card title="Finished this year"><span className="hero">{t.finishedThisYear}</span><small>{t.finished} finished in total</small></Card>
+        <Card title="Reading time"><span className="hero">{hours(t.readingSeconds)}</span><small>on KOReader devices (estimated)</small></Card>
+        <Card title="Listening time"><span className="hero">{hours(t.listeningSeconds)}</span><small>{s.listeningFromAbs ? "from Audiobookshelf's history" : "since history began"}</small></Card>
+        <Card title="Streak"><span className="hero">{plural(s.streak.current, "day", "days")}</span><small>longest {s.streak.longest} · {t.activeDays} days with reading</small></Card>
+        <Card title="Highlights"><span className="hero">{t.highlights}</span><small>across {t.booksTracked} books tracked</small></Card>
+      </div>
+      <p className="hint">
+        Reading time and per-device numbers count from {s.since ? new Date(s.since * 1000).toLocaleDateString() : "your next sync"}, when ShelfSync
+        started keeping progress history. Reading time is estimated from how often your devices sync, so it undercounts.
+      </p>
+
+      <section>
+        <h2>Finished by format</h2>
+        {formats.length ? (
+          <BarList rows={formats.map(([f, n]) => ({ key: f, label: FORMAT_NAME[f] ?? f, value: n, text: plural(n, "book", "books") }))} />
+        ) : <p className="hint">Nothing finished yet.</p>}
+      </section>
+
+      <section>
+        <h2>Books finished per month</h2>
+        <Columns cols={s.months.map((m) => ({ key: m.month, label: monthLabel(m.month), value: m.finished, tip: `${m.month}: ${m.finished} finished` }))} />
+      </section>
+
+      <section>
+        <h2>Time per month</h2>
+        <Columns
+          cols={s.months.map((m) => ({
+            key: m.month,
+            label: monthLabel(m.month),
+            value: m.readingSeconds + m.listeningSeconds,
+            tip: `${m.month}: ${hours(m.readingSeconds + m.listeningSeconds)} (reading ${hours(m.readingSeconds)}, listening ${hours(m.listeningSeconds)})`,
+          }))}
+        />
+      </section>
+
+      <section>
+        <h2>Top authors</h2>
+        {s.authors.length ? (
+          <BarList
+            rows={s.authors.map((a) => ({
+              key: a.author,
+              label: a.author,
+              value: a.books,
+              text: `${plural(a.books, "book", "books")}${a.finished ? ` · ${a.finished} finished` : ""}`,
+              tip: `${a.author}: ${a.books} books, ${a.finished} finished, ${hours(a.seconds)}, ${a.highlights} highlights`,
+            }))}
+          />
+        ) : <p className="hint">No books yet.</p>}
+      </section>
+
+      <section>
+        <h2>Most-read books</h2>
+        {s.books.length ? (
+          <BarList
+            rows={s.books.map((b) => ({
+              key: String(b.id),
+              label: <>{b.title}{b.finished ? " ✓" : ""}<small>{b.author}</small></>,
+              value: b.seconds,
+              text: `${hours(b.seconds)}${b.highlights ? ` · ${plural(b.highlights, "highlight", "highlights")}` : ""}`,
+              tip: `${b.title}: ${hours(b.seconds)}, ${b.highlights} highlights${b.finished ? ", finished" : ""}`,
+            }))}
+          />
+        ) : <p className="hint">No reading time recorded yet.</p>}
+      </section>
+
+      <section>
+        <h2>Devices</h2>
+        {s.devices.length ? (
+          <BarList
+            rows={s.devices.map((d) => ({
+              key: d.id,
+              label: <>{d.name}<small>last used {when(d.lastSeen)}</small></>,
+              value: d.seconds,
+              text: `${hours(d.seconds)} · ${plural(d.books, "book", "books")}`,
+              tip: `${d.name}: ${hours(d.seconds)}, ${d.books} books, ${Math.round(d.pctRead * 100)}% of a book's worth of progress`,
+            }))}
+          />
+        ) : <p className="hint">No devices yet.</p>}
+      </section>
+
+      <section>
+        <h2>Day of the week</h2>
+        <Columns cols={s.weekdays.map((w) => ({ key: w.day, label: w.day, value: w.seconds, tip: `${w.day}: ${hours(w.seconds)}` }))} />
+      </section>
     </div>
   );
 }

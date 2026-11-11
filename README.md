@@ -8,6 +8,7 @@ A self-hosted server that keeps your reading progress in step across e-readers a
 - **Hardcover updates.** Sets *Currently Reading* / *Read*, writes progress and dates, and picks the right edition (ebook vs audiobook) so Hardcover's format stats are correct.
 - **Highlights and notes.** Stores KOReader (and CrossPoint) highlights with their location, lets you add notes, and sends the ones you pick to your Hardcover reading journal.
 - **Web UI.** Dashboard with covers, books, highlights, devices, unmatched items, and an activity log.
+- **Stats.** Books finished per month and by format (audiobook vs ebook), top authors, most-read books, time per device, reading streaks and day of the week. Listening time comes from Audiobookshelf's own history; reading time is estimated from device syncs and counts from when you install this version.
 
 > **Status:** built for one person's setup and used there. Some Hardcover API shapes were taken from other clients' source rather than official docs (see [Known limits](#known-limits)). Start in dry-run mode.
 

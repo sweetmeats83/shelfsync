@@ -88,6 +88,16 @@ export function kosyncRoutes(opts: KosyncOptions): Hono {
       return c.json(err(2003, "Invalid request"), 403);
     }
     const timestamp = Math.floor(Date.now() / 1000);
+    // Landing exactly where another device is means it pulled that position, not that it read up to it.
+    const pulled = db
+      .prepare(
+        `SELECT 1 FROM progress WHERE user_id = ? AND document = ? AND device_id != ?
+           AND (progress = ? OR abs(percentage - ?) < 0.0005) LIMIT 1`,
+      )
+      .get(userId, b.document, b.device_id, b.progress, b.percentage);
+    db.prepare(
+      "INSERT INTO reading_events (ts, source, source_id, device_id, device, pct, pulled) VALUES (?, 'koreader', ?, ?, ?, ?, ?)",
+    ).run(timestamp, b.document, b.device_id, b.device, b.percentage, pulled ? 1 : 0);
     db.prepare(
       `INSERT INTO progress (user_id, document, device, device_id, progress, percentage, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)

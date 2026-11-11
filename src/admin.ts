@@ -6,6 +6,7 @@ import { logActivity } from "./activity.js";
 import type { DB } from "./db.js";
 import type { HardcoverApi } from "./hardcover.js";
 import { manualLink } from "./identification.js";
+import { computeStats } from "./stats.js";
 export interface AdminDeps {
   db: DB;
   password: string;
@@ -13,6 +14,8 @@ export interface AdminDeps {
   dryRun: boolean;
   absConfigured: boolean;
   getHcUser: () => string | null;
+  /** Owner's time zone, for per-day and per-month stats. */
+  tz?: string;
   /** Looks up cover and page slug; fetched lazily and cached in the books table. */
   display?: (hardcoverBookId: number) => Promise<{ cover: string | null; slug: string | null }>;
   /** Re-run the progress engine for a source item after its link changed. */
@@ -319,6 +322,8 @@ export function adminApi(d: AdminDeps): Hono {
       sendingNow.delete(id);
     }
   });
+
+  app.get("/stats", (c) => c.json(computeStats(d.db, d.tz ?? "UTC")));
 
   app.get("/activity", (c) => {
     const level = c.req.query("level");

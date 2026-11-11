@@ -75,3 +75,20 @@ input, select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); 
 
 .warn { color: var(--bad); font-weight: 600; }
 tr.review td { background: rgba(255, 170, 0, 0.08); }
+
+.stats section { margin-top: 28px; }
+.stats h2 { font-size: 15px; color: var(--mute); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 12px; }
+.hero { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.barlist { display: flex; flex-direction: column; gap: 8px; }
+.barrow { display: grid; grid-template-columns: minmax(120px, 2fr) 3fr auto; gap: 12px; align-items: center; }
+.barlabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bartrack { height: 10px; }
+.bartrack i { display: block; height: 100%; min-width: 2px; background: var(--accent); border-radius: 0 4px 4px 0; }
+.barval { color: var(--mute); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.columns { display: flex; gap: 6px; height: 140px; border-bottom: 1px solid var(--line); margin-bottom: 26px; }
+.col { flex: 1; display: flex; flex-direction: column; height: 100%; position: relative; }
+.colplot { flex: 1; display: flex; align-items: flex-end; justify-content: center; }
+.colplot i { display: block; width: min(28px, 70%); background: var(--accent); border-radius: 4px 4px 0 0; }
+.col span { position: absolute; bottom: -20px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--mute); }
+.col:hover .colplot i, .barrow:hover .bartrack i { filter: brightness(1.15); }
+@media (max-width: 560px) { .barrow { grid-template-columns: 1fr auto; } .bartrack { grid-column: 1 / -1; order: 3; } }

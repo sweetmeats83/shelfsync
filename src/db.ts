@@ -135,6 +135,23 @@ function migrate(db: DB): void {
       created_at INTEGER NOT NULL,
       PRIMARY KEY (source, source_id)
     );
+    CREATE TABLE IF NOT EXISTS reading_events (   -- every progress report, kept for stats (progress itself keeps only the latest)
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts INTEGER NOT NULL,
+      source TEXT NOT NULL,             -- koreader | abs
+      source_id TEXT NOT NULL,          -- KOSync document hash or ABS item id
+      device_id TEXT NOT NULL,
+      device TEXT,
+      pct REAL,
+      seconds REAL,                     -- audiobooks: position in seconds
+      pulled INTEGER NOT NULL DEFAULT 0 -- 1 = device just jumped to another device's position (not reading)
+    );
+    CREATE INDEX IF NOT EXISTS reading_events_series ON reading_events (source, source_id, device_id, ts);
+    CREATE TABLE IF NOT EXISTS kv (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS activity (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       ts INTEGER NOT NULL,

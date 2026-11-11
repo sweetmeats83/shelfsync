@@ -161,6 +161,9 @@ export async function pollAbs(d: AbsDeps): Promise<AbsPollResult> {
           fa: toSec(mp.finishedAt),
         });
       changed++;
+      d.db
+        .prepare("INSERT INTO reading_events (ts, source, source_id, device_id, device, pct, seconds) VALUES (?, 'abs', ?, 'abs', 'Audiobookshelf', ?, ?)")
+        .run(lastUpdate ?? now, id, progress, mp.currentTime ?? null);
     }
 
     // Untouched items (0%, not finished) are never linked: that would send the whole ABS library to Hardcover.
@@ -213,6 +216,28 @@ export async function pollAbs(d: AbsDeps): Promise<AbsPollResult> {
       }
     } catch {
       break; // ABS unreachable or item deleted: stop for this poll
+    }
+  }
+
+  // Audiobookshelf keeps exact listening time per day and per book: copy it (hourly) for the stats page.
+  const kv = d.db.prepare("SELECT updated_at FROM kv WHERE key = 'abs_listening_stats'").get() as { updated_at: number } | undefined;
+  if (!kv || now - kv.updated_at > 3600) {
+    try {
+      const ls = await getJson(d, "/api/me/listening-stats");
+      if (ls && typeof ls === "object") {
+        const slim = {
+          totalTime: Number(ls.totalTime) || 0,
+          days: ls.days && typeof ls.days === "object" ? ls.days : {},
+          items: Object.fromEntries(
+            Object.entries(ls.items ?? {}).map(([id, v]: [string, any]) => [id, Number(v?.timeListening) || 0]),
+          ),
+        };
+        d.db
+          .prepare("INSERT INTO kv (key, value, updated_at) VALUES ('abs_listening_stats', ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+          .run(JSON.stringify(slim), now);
+      }
+    } catch {
+      /* older Audiobookshelf or a hiccup: stats fall back to positions recorded here */
     }
   }
 
